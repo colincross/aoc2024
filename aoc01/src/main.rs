@@ -13,11 +13,19 @@ where
 }
 
 fn list_distance(lines: &Vec<Vec<i64>>) -> i64 {
-    let mut lists = rotate_vector_of_vectors(lines);
+    let mut lists: Vec<Vec<i64>> = rotate_vector_of_vectors(lines);
     lists.iter_mut().map(|x| x.sort()).last();
     let pairs = rotate_vector_of_vectors(&lists);
 
     pairs.iter().map(|x| (x[1] - x[0]).abs()).sum()
+}
+
+fn list_similarity(lines: &Vec<Vec<i64>>) -> i64 {
+    let lists: Vec<Vec<i64>> = rotate_vector_of_vectors(lines);
+    lists[0]
+        .iter()
+        .map(|&i| i * lists[1].iter().filter(|&&j| j == i).count() as i64)
+        .sum()
 }
 
 fn main() {
@@ -30,4 +38,5 @@ fn main() {
         .collect();
 
     println!("list distance: {}", list_distance(&lines));
+    println!("list distance: {}", list_similarity(&lines));
 }
