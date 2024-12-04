@@ -6,17 +6,6 @@ struct Direction {
     y: i32,
 }
 
-const DIRECTIONS: &'static [Direction] = &[
-    Direction { x: 1, y: 0 },   // right
-    Direction { x: -1, y: 0 },  // left
-    Direction { x: 0, y: -1 },  // up
-    Direction { x: 0, y: 1 },   // down
-    Direction { x: 1, y: -1 },  // up right
-    Direction { x: -1, y: -1 }, // up left
-    Direction { x: 1, y: 1 },   // down right
-    Direction { x: -1, y: 1 },  // down left
-];
-
 #[derive(Debug, Clone)]
 struct Position {
     x: i32,
@@ -28,9 +17,9 @@ impl Position {
         Self { x, y }
     }
 
-    fn mv(&self, dir: &Direction, count: usize) -> Self {
-        let x = self.x + dir.x * count as i32;
-        let y = self.y + dir.y * count as i32;
+    fn mv(&self, dir: &Direction, count: i32) -> Self {
+        let x = self.x + dir.x * count;
+        let y = self.y + dir.y * count;
         Self { x, y }
     }
 }
@@ -70,18 +59,46 @@ impl<'a> Grid<'a> {
         })
     }
 
+    fn x_mas_match(&self, pos: &Position) -> bool {
+        const DIRECTIONS: &'static [&[Direction]] = &[
+            &[
+                Direction { x: 1, y: -1 }, // up right
+                Direction { x: -1, y: 1 }, // down left
+            ],
+            &[
+                Direction { x: -1, y: -1 }, // up left
+                Direction { x: 1, y: 1 },   // down right
+            ],
+        ];
+
+        DIRECTIONS.iter().all(|&dirs| {
+            dirs.iter()
+                .any(|dir| self.str_match_dir("MAS", pos, dir, 1))
+        })
+    }
+
     fn xmas_count(&self, pos: &Position) -> usize {
+        const DIRECTIONS: &'static [Direction] = &[
+            Direction { x: 1, y: 0 },   // right
+            Direction { x: -1, y: 0 },  // left
+            Direction { x: 0, y: -1 },  // up
+            Direction { x: 0, y: 1 },   // down
+            Direction { x: 1, y: -1 },  // up right
+            Direction { x: -1, y: -1 }, // up left
+            Direction { x: 1, y: 1 },   // down right
+            Direction { x: -1, y: 1 },  // down left
+        ];
+
         DIRECTIONS
             .iter()
-            .filter(|&dir| self.xmas_match_dir(pos, dir))
+            .filter(|&dir| self.str_match_dir("XMAS", pos, dir, 0))
             .count()
     }
 
-    fn xmas_match_dir(&self, pos: &Position, dir: &Direction) -> bool {
-        "XMAS"
-            .bytes()
+    fn str_match_dir(&self, s: &str, pos: &Position, dir: &Direction, offset: i32) -> bool {
+        s.bytes()
             .enumerate()
-            .all(|(i, c)| self.at(pos.mv(dir, i)).unwrap_or(0) == c)
+            .all(|(i, c)| self.at(pos.mv(dir, i as i32 - offset)).unwrap_or(0) == c)
     }
 }
 
@@ -90,6 +107,13 @@ fn count_of_xmas(grid: &Grid) -> usize {
         .filter(|&(_, c)| c == b'X')
         .map(|(pos, _)| grid.xmas_count(&pos))
         .sum()
+}
+
+fn count_of_x_mas(grid: &Grid) -> usize {
+    grid.iter()
+        .filter(|&(_, c)| c == b'A')
+        .filter(|(pos, _)| grid.x_mas_match(&pos))
+        .count()
 }
 
 fn main() {
@@ -107,6 +131,7 @@ fn main() {
     let data = read_to_string(&input_file).unwrap();
     let grid = Grid::from(&data);
     println!("count of XMAS: {}", count_of_xmas(&grid));
+    println!("count of X-MAS: {}", count_of_x_mas(&grid));
 }
 
 #[cfg(test)]
@@ -127,5 +152,21 @@ mod tests {
         let grid = Grid::from(&data);
         let count_of_xmas = count_of_xmas(&grid);
         assert_eq!(count_of_xmas, 2390);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let grid = Grid::from(&data);
+        let count_of_x_mas = count_of_x_mas(&grid);
+        assert_eq!(count_of_x_mas, 9);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let grid = Grid::from(&data);
+        let count_of_x_mas = count_of_x_mas(&grid);
+        assert_eq!(count_of_x_mas, 1809);
     }
 }
