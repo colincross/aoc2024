@@ -1,4 +1,5 @@
 use std::{
+    cmp::Ordering,
     collections::{HashMap, HashSet},
     fs::read_to_string,
 };
@@ -46,6 +47,21 @@ fn valid_pages(orders: &HashMap<u32, HashSet<u32>>, pages: &[u32]) -> bool {
         .all(|(i, &page)| page_is_valid(orders, page, &pages[..i]))
 }
 
+fn reorder_pages(orders: &HashMap<u32, HashSet<u32>>, pages: &[u32]) -> Vec<u32> {
+    let mut pages = pages.to_vec();
+    pages.sort_by(|a, b| match orders.get(a) {
+        Some(a_must_be_before) => {
+            if a_must_be_before.contains(b) {
+                Ordering::Less
+            } else {
+                Ordering::Greater
+            }
+        }
+        None => Ordering::Greater,
+    });
+    pages
+}
+
 fn sum_of_middle_digits_of_valid_updates(
     orders: &HashMap<u32, HashSet<u32>>,
     pages: &[Vec<u32>],
@@ -53,6 +69,18 @@ fn sum_of_middle_digits_of_valid_updates(
     pages
         .iter()
         .filter(|&pages| valid_pages(orders, pages))
+        .map(|v| v[v.len() / 2])
+        .sum()
+}
+
+fn sum_of_middle_digits_of_fixed_updates(
+    orders: &HashMap<u32, HashSet<u32>>,
+    pages: &[Vec<u32>],
+) -> u32 {
+    pages
+        .iter()
+        .filter(|&pages| !valid_pages(orders, pages))
+        .map(|pages| reorder_pages(orders, pages))
         .map(|v| v[v.len() / 2])
         .sum()
 }
@@ -75,6 +103,10 @@ fn main() {
         "sum of middle digits of valid updates: {}",
         sum_of_middle_digits_of_valid_updates(&orders, &pages)
     );
+    println!(
+        "sum of middle digits of fixed updates: {}",
+        sum_of_middle_digits_of_fixed_updates(&orders, &pages)
+    );
 }
 
 #[cfg(test)]
@@ -95,5 +127,21 @@ mod tests {
         let (orders, pages) = parse_input(&data);
         let sum = sum_of_middle_digits_of_valid_updates(&orders, &pages);
         assert_eq!(sum, 5275);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let (orders, pages) = parse_input(&data);
+        let sum = sum_of_middle_digits_of_fixed_updates(&orders, &pages);
+        assert_eq!(sum, 123);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (orders, pages) = parse_input(&data);
+        let sum = sum_of_middle_digits_of_fixed_updates(&orders, &pages);
+        assert_eq!(sum, 6191);
     }
 }
