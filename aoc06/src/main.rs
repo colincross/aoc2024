@@ -1,5 +1,6 @@
-use std::fs::read_to_string;
+use std::{collections::HashSet, fs::read_to_string};
 
+#[derive(Clone, Debug)]
 struct Grid<T>
 where
     T: Default,
@@ -79,7 +80,7 @@ where
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
 struct Position {
     x: i32,
     y: i32,
@@ -97,7 +98,7 @@ impl Position {
     }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 struct Direction {
     x: i32,
     y: i32,
@@ -134,12 +135,13 @@ fn parse_input(data: &str) -> (Grid<bool>, Position) {
     (obstruction_grid, start_position)
 }
 
-fn walk_to_exit(grid: &Grid<bool>, start: &Position) -> usize {
-    let mut visited = Grid::<bool>::new(grid.x_size, grid.y_size);
+fn walk_to_exit(grid: &Grid<bool>, start: &Position) -> Option<usize> {
+    let mut visited_grid = Grid::<bool>::new(grid.x_size, grid.y_size);
     let mut dir = UP;
     let mut pos = start.clone();
+    let mut visited_obstacles = HashSet::<(Position, Direction)>::new();
     loop {
-        let v = visited.at_mut(&pos).expect("pos is valid");
+        let v = visited_grid.at_mut(&pos).expect("pos is valid");
         *v = true;
 
         let mut next_pos = pos.step(&dir);
@@ -148,6 +150,12 @@ fn walk_to_exit(grid: &Grid<bool>, start: &Position) -> usize {
         }
         if grid.at(&next_pos).expect("next_pos is valid") {
             // obstruction
+            let key: (Position, Direction) = (pos.clone(), dir.clone());
+            if visited_obstacles.contains(&key) {
+                return None;
+            }
+            visited_obstacles.insert(key);
+
             dir = dir.rotate_90_cw();
             next_pos = pos.step(&dir);
         }
@@ -158,7 +166,20 @@ fn walk_to_exit(grid: &Grid<bool>, start: &Position) -> usize {
         pos = next_pos;
     }
 
-    visited.iter().filter(|&&v| v).count()
+    Some(visited_grid.iter().filter(|&&v| v).count())
+}
+
+fn grid_with_obstruction(grid: &Grid<bool>, pos: &Position) -> Grid<bool> {
+    let mut new_grid = grid.clone();
+    *new_grid.at_mut(pos).expect("pos is valid") = true;
+    new_grid
+}
+
+fn count_possible_looping_obstructions(grid: &Grid<bool>, start: &Position) -> usize {
+    grid.iter_positions()
+        .filter(|pos| pos != start)
+        .filter(|pos| walk_to_exit(&grid_with_obstruction(grid, pos), start).is_none())
+        .count()
 }
 
 fn main() {
@@ -177,7 +198,11 @@ fn main() {
     let (grid, start) = parse_input(&data);
     println!(
         "cells visited walking to exit: {}",
-        walk_to_exit(&grid, &start)
+        walk_to_exit(&grid, &start).expect("not a loop")
+    );
+    println!(
+        "possible looping obstructions: {}",
+        count_possible_looping_obstructions(&grid, &start)
     );
 }
 
@@ -189,7 +214,7 @@ mod tests {
     fn test_part1() {
         let data = read_to_string("src/test.txt").unwrap();
         let (grid, start) = parse_input(&data);
-        let visited = walk_to_exit(&grid, &start);
+        let visited = walk_to_exit(&grid, &start).expect("not a loop");
         assert_eq!(visited, 41);
     }
 
@@ -197,7 +222,23 @@ mod tests {
     fn answer_part1() {
         let data = read_to_string("src/main.txt").unwrap();
         let (grid, start) = parse_input(&data);
-        let visited = walk_to_exit(&grid, &start);
+        let visited = walk_to_exit(&grid, &start).expect("not a loop");
         assert_eq!(visited, 4988);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let (grid, start) = parse_input(&data);
+        let visited = count_possible_looping_obstructions(&grid, &start);
+        assert_eq!(visited, 6);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (grid, start) = parse_input(&data);
+        let visited = count_possible_looping_obstructions(&grid, &start);
+        assert_eq!(visited, 1697);
     }
 }
