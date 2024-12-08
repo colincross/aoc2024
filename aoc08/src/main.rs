@@ -173,9 +173,60 @@ fn antinodes(x_size: usize, y_size: usize, antenna_groups: &[Vec<Position>]) -> 
     antinodes
 }
 
+fn gcd(a: i32, b: i32) -> i32 {
+    (1..=std::cmp::min(a.abs(), b.abs()))
+        .rev()
+        .filter(|v| a % v == 0 && b % v == 0)
+        .next()
+        .unwrap_or_else(|| panic!("has gcd {} {}", a, b))
+}
+
+fn resonant_antinodes(
+    x_size: usize,
+    y_size: usize,
+    antenna_groups: &[Vec<Position>],
+) -> Grid<bool> {
+    let mut antinodes = Grid::<bool>::new(x_size, y_size);
+    for antennas in antenna_groups {
+        for (a1, a2) in iter_pairs(antennas) {
+            let mut delta = a1 - a2;
+            let gcd = gcd(delta.x, delta.y);
+            delta = Position {
+                x: delta.x / gcd,
+                y: delta.y / gcd,
+            };
+            let mut pos = *a1;
+            while antinodes.valid_pos(&pos) {
+                if let Some(v) = antinodes.at_mut(&pos) {
+                    *v = true;
+                }
+                pos = pos + delta;
+            }
+            delta = Position {
+                x: -delta.x,
+                y: -delta.y,
+            };
+            pos = *a2;
+            while antinodes.valid_pos(&pos) {
+                if let Some(v) = antinodes.at_mut(&pos) {
+                    *v = true;
+                }
+                pos = pos + delta;
+            }
+        }
+    }
+    antinodes
+}
+
 fn count_antinodes(grid: &Grid<u8>) -> usize {
     let antenna_groups = find_antenna_groups(grid);
     let antinodes_grid = antinodes(grid.x_size, grid.y_size, &antenna_groups);
+    antinodes_grid.iter().filter(|&(_, v)| v).count()
+}
+
+fn count_resonant_antinodes(grid: &Grid<u8>) -> usize {
+    let antenna_groups = find_antenna_groups(grid);
+    let antinodes_grid = resonant_antinodes(grid.x_size, grid.y_size, &antenna_groups);
     antinodes_grid.iter().filter(|&(_, v)| v).count()
 }
 
@@ -194,6 +245,10 @@ fn main() {
     let data = read_to_string(&input_file).unwrap();
     let grid = parse_input(&data);
     println!("count antinodes: {}", count_antinodes(&grid));
+    println!(
+        "count resonant antinodes: {}",
+        count_resonant_antinodes(&grid)
+    );
 }
 
 #[cfg(test)]
@@ -214,5 +269,29 @@ mod tests {
         let grid = parse_input(&data);
         let count_antinodes = count_antinodes(&grid);
         assert_eq!(count_antinodes, 222);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let grid = parse_input(&data);
+        let count_resonant_antinodes = count_resonant_antinodes(&grid);
+        assert_eq!(count_resonant_antinodes, 34);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let grid = parse_input(&data);
+        let count_resonant_antinodes = count_resonant_antinodes(&grid);
+        assert_eq!(count_resonant_antinodes, 884);
+    }
+
+    #[test]
+    fn test_gcd() {
+        assert_eq!(gcd(2, 4), 2);
+        assert_eq!(gcd(4, 8), 4);
+        assert_eq!(gcd(14, 21), 7);
+        assert_eq!(gcd(-2, -3), 1);
     }
 }
