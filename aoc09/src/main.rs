@@ -1,6 +1,6 @@
 use std::fs::read_to_string;
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct File {
     id: u64,
     size: u8,
@@ -101,6 +101,55 @@ impl Disk {
         }
         self.free = vec![0; self.files.len() - 1];
     }
+
+    fn find_file(&self, id: u64) -> (usize, &File) {
+        self.files
+            .iter()
+            .enumerate()
+            .find(|(_, file)| file.id == id)
+            .expect("has file with id")
+    }
+
+    fn defragment_whole(&mut self) {
+        let max_id = self
+            .files
+            .iter()
+            .map(|file| file.id)
+            .max()
+            .expect("has max");
+        for id in (1..=max_id).rev() {
+            assert_eq!(self.files.len(), self.free.len() + 1);
+            let (file_index, file) = self.find_file(id);
+            let file = file.clone();
+            let Some(first_free) = self.free[..file_index]
+                .iter()
+                .enumerate()
+                .find(|&(_, free_size)| free_size >= &file.size)
+                .map(|(index, _)| index)
+            else {
+                continue;
+            };
+            let new_file_index = first_free + 1;
+
+            // Reduce the size of the free block, possibly to zero.
+            self.free[first_free] -= file.size;
+            // Insert a new zero length free entry before the new file.
+            // After this first_free is no longer accurate.
+            self.free.insert(first_free, 0);
+
+            if file_index == self.files.len() - 1 {
+                self.free.pop();
+            } else {
+                // Combine the free entries before and after the old file.
+                self.free[file_index] += self.free[file_index + 1] + file.size;
+                self.free.remove(file_index + 1);
+            }
+            // Remove the old file.  After this file_index is no longer accurate.
+            self.files.remove(file_index);
+            // Insert the new file.  After this new_file_index is no longer accurate.
+            self.files.insert(new_file_index, file);
+        }
+    }
 }
 
 fn parse_input(data: &str) -> Disk {
@@ -123,6 +172,9 @@ fn main() {
     let mut disk = parse_input(&data);
     disk.defragment();
     println!("checksum defragment: {}", disk.checksum());
+    let mut disk2 = parse_input(&data);
+    disk2.defragment_whole();
+    println!("checksum defragment whole: {}", disk2.checksum());
 }
 
 #[cfg(test)]
@@ -145,5 +197,23 @@ mod tests {
         disk.defragment();
         let checksum = disk.checksum();
         assert_eq!(checksum, 6432869891895);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let mut disk = parse_input(&data);
+        disk.defragment_whole();
+        let checksum = disk.checksum();
+        assert_eq!(checksum, 2858);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let mut disk = parse_input(&data);
+        disk.defragment_whole();
+        let checksum = disk.checksum();
+        assert_eq!(checksum, 6467290479134);
     }
 }
