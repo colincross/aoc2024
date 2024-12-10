@@ -1,5 +1,5 @@
 use mygrid::{Grid, Position};
-use std::{collections::HashSet, fs::read_to_string, hash::Hash};
+use std::{collections::HashSet, fs::read_to_string};
 
 fn parse_input(data: &str) -> Grid<u8> {
     let grid_bytes = Grid::<u8>::from_bytes(data);
@@ -49,6 +49,32 @@ fn sum_trailhead_scores(grid: &Grid<u8>) -> usize {
         .sum()
 }
 
+fn paths_to_peaks(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
+    let Some(n) = grid.at(pos) else { return 0 };
+
+    if n == 9 {
+        return 1;
+    }
+
+    mygrid::CARDINAL_DIRECTIONS
+        .iter()
+        .map(|dir| pos.step(dir))
+        .filter(|pos| grid.at(&pos).is_some_and(|v| v == n + 1))
+        .map(|pos| paths_to_peaks(grid, &pos))
+        .sum()
+}
+
+fn trailhead_rating(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
+    paths_to_peaks(grid, pos)
+}
+
+fn sum_trailhead_ratings(grid: &Grid<u8>) -> usize {
+    grid.iter_positions()
+        .filter(|pos| grid.at(pos).expect("valid") == 0)
+        .map(|pos| trailhead_rating(grid, &pos))
+        .sum()
+}
+
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let input_file = if args.len() >= 2 {
@@ -65,6 +91,8 @@ fn main() {
     let grid = parse_input(&data);
     let sum_trailhead_scores = sum_trailhead_scores(&grid);
     println!("sum of trailhead scores: {}", sum_trailhead_scores);
+    let sum_trailhead_ratings = sum_trailhead_ratings(&grid);
+    println!("sum of trailhead ratings: {}", sum_trailhead_ratings);
 }
 
 #[cfg(test)]
@@ -85,5 +113,21 @@ mod tests {
         let grid = parse_input(&data);
         let sum_trailhead_scores = sum_trailhead_scores(&grid);
         assert_eq!(sum_trailhead_scores, 624);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let grid = parse_input(&data);
+        let sum_trailhead_ratings = sum_trailhead_ratings(&grid);
+        assert_eq!(sum_trailhead_ratings, 81);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let grid = parse_input(&data);
+        let sum_trailhead_ratings = sum_trailhead_ratings(&grid);
+        assert_eq!(sum_trailhead_ratings, 1483);
     }
 }
