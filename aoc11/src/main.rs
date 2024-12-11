@@ -1,39 +1,53 @@
-use std::fs::read_to_string;
+use std::{
+    collections::{hash_map::Entry, HashMap},
+    fs::read_to_string,
+};
 
 fn num_digits(n: u64) -> u32 {
     (n as f32).log10().floor() as u32 + 1
 }
 
 fn blink_stone(n: u64) -> (u64, Option<u64>) {
-    if n == 0 {
-        return (1, None);
-    }
     let d = num_digits(n);
-    if d % 2 == 0 {
-        return (n / 10_u64.pow(d / 2), Some(n % 10_u64.pow(d / 2)));
+    if n == 0 {
+        (1, None)
+    } else if d % 2 == 0 {
+        (n / 10_u64.pow(d / 2), Some(n % 10_u64.pow(d / 2)))
+    } else {
+        (n * 2024, None)
     }
-    return (n * 2024, None);
 }
 
-fn blink_stones(stones: &mut Vec<u64>) {
-    let mut i = 0;
-    while i < stones.len() {
-        let (n1, n2) = blink_stone(stones[i]);
-        stones[i] = n1;
-        if let Some(n2) = n2 {
-            stones.insert(i + 1, n2);
-            i += 1;
+fn num_stones_after_blinks_one(
+    n: u64,
+    times: usize,
+    cache: &mut HashMap<(u64, usize), usize>,
+) -> usize {
+    if times == 0 {
+        return 1;
+    }
+    let key = (n, times);
+    match cache.entry((n, times)) {
+        Entry::Occupied(occupied) => {
+            return occupied.get().clone();
         }
-        i += 1;
+        Entry::Vacant(_) => (),
     }
+    let (n1, n2) = blink_stone(n);
+    let mut stones = num_stones_after_blinks_one(n1, times - 1, cache);
+    if let Some(n2) = n2 {
+        stones += num_stones_after_blinks_one(n2, times - 1, cache);
+    }
+    cache.insert(key, stones);
+    stones
 }
 
-fn num_stones_after_25_blinks(stones: &[u64]) -> usize {
-    let mut stones = stones.to_vec();
-    for _ in 0..25 {
-        blink_stones(&mut stones);
-    }
-    stones.len()
+fn num_stones_after_blinks(stones: &[u64], times: usize) -> usize {
+    let mut cache = HashMap::new();
+    stones
+        .iter()
+        .map(|&stone| num_stones_after_blinks_one(stone, times, &mut cache))
+        .sum()
 }
 
 fn parse_input(data: &str) -> Vec<u64> {
@@ -56,8 +70,10 @@ fn main() {
     };
     let data = read_to_string(&input_file).unwrap();
     let stones = parse_input(&data);
-    let num_stones_after_25_blinks = num_stones_after_25_blinks(&stones);
+    let num_stones_after_25_blinks = num_stones_after_blinks(&stones, 25);
     println!("num stones after 25 blinks: {}", num_stones_after_25_blinks);
+    let num_stones_after_75_blinks = num_stones_after_blinks(&stones, 75);
+    println!("num stones after 75 blinks: {}", num_stones_after_75_blinks);
 }
 
 #[cfg(test)]
@@ -68,7 +84,7 @@ mod tests {
     fn test_part1() {
         let data = read_to_string("src/test.txt").unwrap();
         let stones = parse_input(&data);
-        let num_stones_after_25_blinks = num_stones_after_25_blinks(&stones);
+        let num_stones_after_25_blinks = num_stones_after_blinks(&stones, 25);
         assert_eq!(num_stones_after_25_blinks, 55312);
     }
 
@@ -76,7 +92,15 @@ mod tests {
     fn answer_part1() {
         let data = read_to_string("src/main.txt").unwrap();
         let stones = parse_input(&data);
-        let num_stones_after_25_blinks = num_stones_after_25_blinks(&stones);
+        let num_stones_after_25_blinks = num_stones_after_blinks(&stones, 25);
         assert_eq!(num_stones_after_25_blinks, 194557);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let stones = parse_input(&data);
+        let num_stones_after_75_blinks = num_stones_after_blinks(&stones, 75);
+        assert_eq!(num_stones_after_75_blinks, 231532558973909);
     }
 }
