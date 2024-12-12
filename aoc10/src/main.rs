@@ -11,7 +11,7 @@ fn parse_input(data: &str) -> Grid<u8> {
 }
 
 fn reachable_peaks(grid: &Grid<u8>, pos: &mygrid::Position) -> Option<HashSet<Position>> {
-    let Some(n) = grid.at(pos) else { return None };
+    let Some(&n) = grid.at(pos) else { return None };
 
     if n == 9 {
         return Some(HashSet::<Position>::from([pos.clone()]));
@@ -20,7 +20,7 @@ fn reachable_peaks(grid: &Grid<u8>, pos: &mygrid::Position) -> Option<HashSet<Po
     mygrid::CARDINAL_DIRECTIONS
         .iter()
         .map(|dir| pos.step(dir))
-        .filter(|pos| grid.at(&pos).is_some_and(|v| v == n + 1))
+        .filter(|pos| grid.at(&pos).is_some_and(|&v| v == n + 1))
         .map(|pos| reachable_peaks(grid, &pos))
         .reduce(|a, b| {
             if let Some(a) = a {
@@ -44,13 +44,13 @@ fn trailhead_score(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
 
 fn sum_trailhead_scores(grid: &Grid<u8>) -> usize {
     grid.iter_positions()
-        .filter(|pos| grid.at(pos).expect("valid") == 0)
+        .filter(|pos| grid.at(pos).expect("valid") == &0)
         .map(|pos| trailhead_score(grid, &pos))
         .sum()
 }
 
 fn paths_to_peaks(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
-    let Some(n) = grid.at(pos) else { return 0 };
+    let Some(&n) = grid.at(pos) else { return 0 };
 
     if n == 9 {
         return 1;
@@ -59,7 +59,7 @@ fn paths_to_peaks(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
     mygrid::CARDINAL_DIRECTIONS
         .iter()
         .map(|dir| pos.step(dir))
-        .filter(|pos| grid.at(&pos).is_some_and(|v| v == n + 1))
+        .filter(|pos| grid.at(&pos).is_some_and(|&v| v == n + 1))
         .map(|pos| paths_to_peaks(grid, &pos))
         .sum()
 }
@@ -70,7 +70,7 @@ fn trailhead_rating(grid: &Grid<u8>, pos: &mygrid::Position) -> usize {
 
 fn sum_trailhead_ratings(grid: &Grid<u8>) -> usize {
     grid.iter_positions()
-        .filter(|pos| grid.at(pos).expect("valid") == 0)
+        .filter(|pos| grid.at(pos).expect("valid") == &0)
         .map(|pos| trailhead_rating(grid, &pos))
         .sum()
 }

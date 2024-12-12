@@ -1,18 +1,15 @@
 #[derive(Clone, Debug)]
-pub struct Grid<T>
-where
-    T: Default,
-{
+pub struct Grid<T> {
     pub x_size: usize,
     pub y_size: usize,
     grid: Vec<T>,
 }
 
-impl<T> Grid<T>
-where
-    T: Default + Clone + Copy,
-{
-    pub fn new(x_size: usize, y_size: usize) -> Self {
+impl<T> Grid<T> {
+    pub fn new(x_size: usize, y_size: usize) -> Self
+    where
+        T: Default + Clone,
+    {
         Self {
             x_size,
             y_size,
@@ -49,9 +46,9 @@ where
         pos.x >= 0 && (pos.x as usize) < self.x_size && pos.y >= 0 && (pos.y as usize) < self.y_size
     }
 
-    pub fn at(&self, pos: &Position) -> Option<T> {
+    pub fn at(&self, pos: &Position) -> Option<&T> {
         if self.valid_pos(pos) {
-            Some(self.grid[pos.y as usize * self.x_size + pos.x as usize])
+            Some(&self.grid[pos.y as usize * self.x_size + pos.x as usize])
         } else {
             None
         }
@@ -76,12 +73,90 @@ where
                 .map(move |x| Position::new(x.try_into().unwrap(), y.try_into().unwrap()))
         })
     }
+
+    pub fn iter_region<'a, F>(
+        &'a self,
+        start: &Position,
+        same_region_fn: F,
+    ) -> impl Iterator<Item = (Position, &'a T)>
+    where
+        F: Fn(Position, &'a T) -> bool + Copy,
+    {
+        RegionIterator::new(self, start, same_region_fn)
+    }
+
+    pub fn iter_neighbors<'a>(
+        &'a self,
+        start: &Position,
+    ) -> impl Iterator<Item = (Position, &'a T)> {
+        let start = start.clone();
+        CARDINAL_DIRECTIONS
+            .iter()
+            .map(move |dir| start.step(dir))
+            .filter_map(|pos| self.at(&pos).and_then(|v| Some((pos, v))))
+    }
+}
+
+struct RegionIterator<'a, T, F>
+where
+    F: Fn(Position, &'a T) -> bool,
+{
+    grid: &'a Grid<T>,
+    visited: Grid<bool>,
+    pending: Vec<(Position, &'a T)>,
+    same_region_fn: F,
+}
+
+impl<'a, T, F: Fn(Position, &'a T) -> bool> RegionIterator<'a, T, F> {
+    fn new(grid: &'a Grid<T>, start: &Position, same_region_fn: F) -> Self {
+        Self {
+            grid,
+            visited: Grid::<bool>::new(grid.x_size, grid.y_size),
+            pending: vec![(start.clone(), &grid.at(start).expect("valid"))],
+            same_region_fn: same_region_fn,
+        }
+    }
+
+    fn same_region_neighbors(
+        grid: &'a Grid<T>,
+        same_region_fn: F,
+        start: &Position,
+    ) -> impl Iterator<Item = (Position, &'a T)> {
+        grid.iter_neighbors(start)
+            .filter(move |&(pos, v)| same_region_fn(pos, &v))
+    }
+}
+
+impl<'a, T, F: Fn(Position, &'a T) -> bool> Iterator for RegionIterator<'a, T, F>
+where
+    T: 'a,
+    F: Copy,
+{
+    type Item = (Position, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (pos, v) = self.pending.pop()?;
+        *self.visited.at_mut(&pos).expect("valid") = true;
+        let new_region_neighbors =
+            Self::same_region_neighbors(self.grid, self.same_region_fn, &pos);
+        for (neighbor, v) in new_region_neighbors {
+            let Some(visited) = self.visited.at_mut(&neighbor) else {
+                continue;
+            };
+            if visited == &true {
+                continue;
+            }
+            *visited = true;
+            self.pending.push((neighbor, v));
+        }
+        Some((pos, v))
+    }
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash, Debug)]
 pub struct Position {
-    x: i32,
-    y: i32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Position {

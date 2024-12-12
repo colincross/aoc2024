@@ -50,5 +50,12 @@ name = "aoc11"
 version = "0.1.0"
 
 [[package]]
+name = "aoc12"
+version = "0.1.0"
+dependencies = [
+ "mygrid",
+]
+
+[[package]]
 name = "mygrid"
 version = "0.1.0"
