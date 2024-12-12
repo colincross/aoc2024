@@ -95,6 +95,16 @@ impl<T> Grid<T> {
             .map(move |dir| start.step(dir))
             .filter_map(|pos| self.at(&pos).and_then(|v| Some((pos, v))))
     }
+
+    pub fn iter_neighbor_positions(&self, start: &Position) -> impl Iterator<Item = Position> {
+        let start = start.clone();
+        CARDINAL_DIRECTIONS.iter().map(move |dir| start.step(dir))
+    }
+
+    pub fn iter_surrounding_positions(&self, start: &Position) -> impl Iterator<Item = Position> {
+        let start = start.clone();
+        ALL_DIRECTIONS.iter().map(move |dir| start.step(dir))
+    }
 }
 
 struct RegionIterator<'a, T, F>
@@ -196,3 +206,14 @@ pub const LEFT: Direction = Direction { x: -1, y: 0 };
 pub const RIGHT: Direction = Direction { x: 1, y: 0 };
 
 pub const CARDINAL_DIRECTIONS: [Direction; 4] = [UP, DOWN, LEFT, RIGHT];
+
+pub const UP_LEFT: Direction = Direction { x: -1, y: -1 };
+pub const DOWN_LEFT: Direction = Direction { x: -1, y: 1 };
+pub const UP_RIGHT: Direction = Direction { x: 1, y: -1 };
+pub const DOWN_RIGHT: Direction = Direction { x: 1, y: 1 };
+
+pub const DIAGONAL_DIRECTIONS: [Direction; 4] = [UP_LEFT, UP_RIGHT, DOWN_LEFT, DOWN_RIGHT];
+
+pub const ALL_DIRECTIONS: [Direction; 8] = [
+    UP, UP_RIGHT, RIGHT, DOWN_RIGHT, DOWN, DOWN_LEFT, LEFT, UP_LEFT,
+];

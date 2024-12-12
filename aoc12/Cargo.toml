@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 mygrid = {version = "0", path="../lib/mygrid"}
+itertools = "0"
