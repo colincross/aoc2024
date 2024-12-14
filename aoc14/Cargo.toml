@@ -1,9 +1,10 @@
 [package]
-name = "mygrid"
+name = "aoc14"
 version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-"auto-impl-ops" = "0"
+regex = "1"
+mygrid = {version = "0", path="../lib/mygrid"}

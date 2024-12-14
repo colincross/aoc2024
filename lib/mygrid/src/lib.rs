@@ -1,3 +1,5 @@
+use std::ops::*;
+
 #[derive(Clone, Debug)]
 pub struct Grid<T> {
     pub x_size: usize,
@@ -179,6 +181,54 @@ impl Position {
             x: self.x + dir.x,
             y: self.y + dir.y,
         }
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl AddAssign<&Position> for Position {
+    fn add_assign(&mut self, other: &Self) {
+        self.x = &self.x + &other.x;
+        self.y = &self.y + &other.y;
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl AddAssign<&i32> for Position {
+    fn add_assign(&mut self, other: &i32) {
+        self.x = &self.x + other;
+        self.y = &self.y + other;
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl MulAssign<&Position> for Position {
+    fn mul_assign(&mut self, other: &Self) {
+        self.x = &self.x * &other.x;
+        self.y = &self.y * &other.y;
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl MulAssign<&i32> for Position {
+    fn mul_assign(&mut self, other: &i32) {
+        self.x = &self.x * other;
+        self.y = &self.y * other;
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl DivAssign<&i32> for Position {
+    fn div_assign(&mut self, other: &i32) {
+        self.x = &self.x / other;
+        self.y = &self.y / other;
+    }
+}
+
+#[auto_impl_ops::auto_ops]
+impl RemAssign<&Position> for Position {
+    fn rem_assign(&mut self, other: &Self) {
+        self.x = &self.x % &other.x;
+        self.y = &self.y % &other.y;
     }
 }
 
