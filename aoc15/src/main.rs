@@ -1,19 +1,23 @@
 use mygrid::{Direction, Grid, Position};
-use std::fs::read_to_string;
+use std::{collections::HashSet, fs::read_to_string};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Cell {
-    EMPTY,
-    BOX,
-    WALL,
+    Empty,
+    Box,
+    BoxLeft,
+    BoxRight,
+    Wall,
 }
 
 impl ToString for Cell {
     fn to_string(&self) -> String {
         match self {
-            &Cell::EMPTY => ".".to_string(),
-            &Cell::BOX => "O".to_string(),
-            &Cell::WALL => "#".to_string(),
+            &Cell::Empty => ".".to_string(),
+            &Cell::Box => "O".to_string(),
+            &Cell::BoxLeft => "[".to_string(),
+            &Cell::BoxRight => "]".to_string(),
+            &Cell::Wall => "#".to_string(),
         }
     }
 }
@@ -36,10 +40,10 @@ impl State {
                 .iter()
                 .flat_map(|&line| line.bytes())
                 .map(|c| match c {
-                    b'#' => Cell::WALL,
-                    b'O' => Cell::BOX,
-                    b'@' => Cell::EMPTY,
-                    b'.' => Cell::EMPTY,
+                    b'#' => Cell::Wall,
+                    b'O' => Cell::Box,
+                    b'@' => Cell::Empty,
+                    b'.' => Cell::Empty,
                     _ => panic!(),
                 }),
         );
@@ -52,23 +56,72 @@ impl State {
         Self { grid, robot }
     }
 
-    fn move_robot(&mut self, dir: &Direction) {
-        assert_eq!(self.grid[&self.robot], Cell::EMPTY);
-        let next_robot_pos = self.robot.step(dir);
-        let mut end_of_boxes_pos = next_robot_pos;
-        while self.grid[&end_of_boxes_pos] == Cell::BOX {
-            end_of_boxes_pos = end_of_boxes_pos.step(dir);
-        }
-        //dbg!(dir, &self.robot, &next_robot_pos, &end_of_boxes_pos);
-        if self.grid[&end_of_boxes_pos] == Cell::EMPTY {
-            if end_of_boxes_pos != next_robot_pos {
-                self.grid[&end_of_boxes_pos] = Cell::BOX;
-                self.grid[&next_robot_pos] = Cell::EMPTY;
+    fn double_from(from: &Self) -> Self {
+        let doubler = from
+            .grid
+            .iter()
+            .map(|cell| match cell {
+                &Cell::Box => vec![Cell::BoxLeft, Cell::BoxRight],
+                &Cell::Empty => vec![Cell::Empty, Cell::Empty],
+                &Cell::Wall => vec![Cell::Wall, Cell::Wall],
+                _ => panic!(),
+            })
+            .flatten();
+        let grid = Grid::<Cell>::from_iter(from.grid.x_size * 2, from.grid.y_size, doubler);
+        let robot = Position::new(from.robot.x * 2, from.robot.y);
+
+        Self { grid, robot }
+    }
+
+    fn recurse_move_boxes(&self, pos: &Position, dir: &Direction) -> (Vec<Position>, bool) {
+        match self.grid[&pos] {
+            Cell::Wall => (vec![], true),
+            Cell::Empty => (vec![], false),
+            box_cell => {
+                let next_box = pos.step(dir);
+                let (mut boxes, mut hits_wall) = self.recurse_move_boxes(&next_box, dir);
+                if (box_cell == Cell::BoxLeft || box_cell == Cell::BoxRight)
+                    && (dir == &mygrid::UP || dir == &mygrid::DOWN)
+                {
+                    let pair_box = pos.step(if box_cell == Cell::BoxLeft {
+                        &mygrid::RIGHT
+                    } else {
+                        &mygrid::LEFT
+                    });
+                    let pair_next_box = pair_box.step(dir);
+                    let (pair_boxes, other_hits_wall) =
+                        self.recurse_move_boxes(&pair_next_box, dir);
+                    boxes.extend(pair_boxes);
+                    boxes.insert(0, pair_box.clone());
+                    hits_wall |= other_hits_wall;
+                }
+                boxes.insert(0, pos.clone());
+                (boxes, hits_wall)
             }
-            self.robot = next_robot_pos;
-        } else {
-            assert_eq!(self.grid[&end_of_boxes_pos], Cell::WALL);
         }
+    }
+
+    fn move_robot(&mut self, dir: &Direction) {
+        assert_eq!(self.grid[&self.robot], Cell::Empty);
+        let next_robot_pos = self.robot.step(dir);
+        let (boxes, hits_wall) = self.recurse_move_boxes(&next_robot_pos, dir);
+        if hits_wall {
+            return;
+        }
+
+        let mut already_moved_boxes = HashSet::<Position>::new();
+        for box_pos in boxes.iter().rev() {
+            if already_moved_boxes.contains(box_pos) {
+                continue;
+            }
+            let moved_box_pos = box_pos.step(dir);
+            self.grid[&moved_box_pos] = self.grid[&box_pos];
+            self.grid[&box_pos] = Cell::Empty;
+            already_moved_boxes.insert(box_pos.clone());
+        }
+
+        assert_eq!(self.grid[&next_robot_pos], Cell::Empty);
+        self.robot = next_robot_pos;
     }
 
     fn move_robot_multiple(&mut self, dirs: &[Direction]) {
@@ -80,9 +133,10 @@ impl State {
     fn iter_boxes<'a>(&'a self) -> impl Iterator<Item = Position> + 'a {
         self.grid
             .iter_positions()
-            .filter(|pos| self.grid[pos] == Cell::BOX)
+            .filter(|pos| self.grid[pos] == Cell::Box || self.grid[pos] == Cell::BoxLeft)
     }
 
+    #[allow(unused)]
     fn pretty_print_grid(&self) -> String {
         self.grid.to_string()
     }
@@ -126,10 +180,16 @@ fn main() {
     };
     let data = read_to_string(&input_file).unwrap();
     let (mut state, movements) = parse_input(&data);
+    let mut double_state = State::double_from(&state);
     state.move_robot_multiple(&movements);
     println!(
         "sum of box gps coordinates: {}",
         sum_of_box_gps_coordinates(&state)
+    );
+    double_state.move_robot_multiple(&movements);
+    println!(
+        "sum of box gps coordinates after doubling: {}",
+        sum_of_box_gps_coordinates(&double_state)
     );
 }
 
@@ -170,5 +230,23 @@ mod tests {
         let (mut state, movements) = parse_input(&data);
         state.move_robot_multiple(&movements);
         assert_eq!(sum_of_box_gps_coordinates(&state), 1526673);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let (mut state, movements) = parse_input(&data);
+        state = State::double_from(&state);
+        state.move_robot_multiple(&movements);
+        assert_eq!(sum_of_box_gps_coordinates(&state), 9021);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (mut state, movements) = parse_input(&data);
+        state = State::double_from(&state);
+        state.move_robot_multiple(&movements);
+        assert_eq!(sum_of_box_gps_coordinates(&state), 1535509);
     }
 }
