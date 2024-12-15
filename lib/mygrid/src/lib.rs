@@ -7,6 +7,20 @@ pub struct Grid<T> {
     grid: Vec<T>,
 }
 
+impl<T> Index<&Position> for Grid<T> {
+    type Output = T;
+
+    fn index(&self, pos: &Position) -> &Self::Output {
+        self.at(pos).unwrap()
+    }
+}
+
+impl<T> IndexMut<&Position> for Grid<T> {
+    fn index_mut(&mut self, pos: &Position) -> &mut Self::Output {
+        self.at_mut(pos).unwrap()
+    }
+}
+
 impl<T> Grid<T> {
     pub fn new(x_size: usize, y_size: usize) -> Self
     where
@@ -269,6 +283,16 @@ impl Direction {
             RIGHT => DOWN,
             DOWN => LEFT,
             LEFT => UP,
+            _ => panic!(),
+        }
+    }
+
+    pub fn from(c: u8) -> Self {
+        match c {
+            b'^' => UP,
+            b'>' => RIGHT,
+            b'v' => DOWN,
+            b'<' => LEFT,
             _ => panic!(),
         }
     }
