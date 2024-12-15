@@ -1,8 +1,8 @@
-use mygrid::Position;
+use mygrid::{Grid, Position};
 use regex::Regex;
 use std::{cmp::Ordering, fs::read_to_string};
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 struct Robot {
     p: Position,
     v: Position,
@@ -34,15 +34,23 @@ impl Robot {
     }
 }
 
+fn traverse_robots<'a>(
+    robots: &'a [Robot],
+    seconds: i32,
+    size: &'a Position,
+) -> impl Iterator<Item = Robot> + 'a {
+    robots
+        .iter()
+        .map(move |robot| robot.traverse(seconds, size))
+}
+
 fn product_of_robots_in_quadrants_after_traverse(
     robots: &[Robot],
     seconds: i32,
     size: &Position,
 ) -> usize {
     let middle = size / 2;
-    robots
-        .iter()
-        .map(|robot| robot.traverse(seconds, size))
+    traverse_robots(robots, seconds, size)
         .map(
             |robot| match (robot.p.x.cmp(&middle.x), robot.p.y.cmp(&middle.y)) {
                 (Ordering::Less, Ordering::Less) => [1, 0, 0, 0],
@@ -56,6 +64,25 @@ fn product_of_robots_in_quadrants_after_traverse(
         .unwrap()
         .iter()
         .product()
+}
+
+fn pretty_print_robots(robots: &[Robot], size: &Position) -> String {
+    let mut grid = Grid::<char>::new(size.x as usize, size.y as usize);
+
+    grid.fill('.');
+    robots
+        .iter()
+        .for_each(|robot| *grid.at_mut(&robot.p).unwrap() = '*');
+
+    grid.to_string()
+}
+
+fn no_duplicate_robots(robots: &[Robot], size: &Position) -> bool {
+    let mut grid: Grid<bool> = Grid::<bool>::new(size.x as usize, size.y as usize);
+    robots
+        .iter()
+        .for_each(|robot| *grid.at_mut(&robot.p).unwrap() = true);
+    return grid.iter().filter(|&v| v == &true).count() == robots.len();
 }
 
 fn parse_input(data: &str) -> Vec<Robot> {
@@ -75,11 +102,22 @@ fn main() {
             .join("src/main.txt")
     };
     let data = read_to_string(&input_file).unwrap();
-    let robots = parse_input(&data);
+    let mut robots = parse_input(&data);
+    let size = Position::new(101, 103);
     println!(
         "product of robots in quadrants after traverse: {}",
-        product_of_robots_in_quadrants_after_traverse(&robots, 100, &Position::new(101, 103))
+        product_of_robots_in_quadrants_after_traverse(&robots, 100, &size)
     );
+
+    // vertical alignment: 9, 168, repeat = 9 + 159* x
+    // horizontal alignment: 65, 110, 211, repeat 45
+    for i in 1..usize::MAX {
+        robots = traverse_robots(&robots, 1, &size).collect::<Vec<_>>();
+        if no_duplicate_robots(&robots, &size) {
+            println!("seconds: {}", i);
+            println!("{}", pretty_print_robots(&robots, &size));
+        }
+    }
 }
 
 #[cfg(test)]
@@ -112,5 +150,17 @@ mod tests {
             product_of_robots_in_quadrants_after_traverse(&robots, 100, &Position::new(101, 103)),
             236628054
         );
+    }
+
+    #[test]
+    fn test_no_duplicate_robots() {
+        let robot1 = Robot::from("p=2,4 v=2,-3");
+        let robot2 = Robot::from("p=2,5 v=2,-5");
+        let robot3 = Robot::from("p=2,4 v=2,-4");
+        let size = Position::new(11, 7);
+        assert_eq!(no_duplicate_robots(&[robot1], &size), true);
+        assert_eq!(no_duplicate_robots(&[robot1, robot2], &size), true);
+        assert_eq!(no_duplicate_robots(&[robot1, robot3], &size), false);
+        assert_eq!(no_duplicate_robots(&[robot1, robot2, robot3], &size), false);
     }
 }

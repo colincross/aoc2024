@@ -44,6 +44,30 @@ impl<T> Grid<T> {
         }
     }
 
+    pub fn fill(&mut self, v: T)
+    where
+        T: Clone,
+    {
+        self.grid.fill(v);
+    }
+
+    pub fn to_string(&self) -> String
+    where
+        T: ToString,
+    {
+        self.grid
+            .iter()
+            .enumerate()
+            .map(|(i, v)| {
+                if i != 0 && i % self.x_size == 0 {
+                    "\n".to_string() + &v.to_string()
+                } else {
+                    v.to_string()
+                }
+            })
+            .collect()
+    }
+
     pub fn valid_pos(&self, pos: &Position) -> bool {
         pos.x >= 0 && (pos.x as usize) < self.x_size && pos.y >= 0 && (pos.y as usize) < self.y_size
     }
