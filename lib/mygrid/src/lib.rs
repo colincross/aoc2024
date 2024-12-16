@@ -65,6 +65,22 @@ impl<T> Grid<T> {
         self.grid.fill(v);
     }
 
+    pub fn find(&self, t: &T) -> Option<Position>
+    where
+        T: PartialEq,
+    {
+        self.grid
+            .iter()
+            .enumerate()
+            .find(|&(_, v)| v == t)
+            .and_then(|(i, _)| {
+                Some(Position::new(
+                    (i % self.x_size) as i32,
+                    (i / self.x_size) as i32,
+                ))
+            })
+    }
+
     pub fn to_string(&self) -> String
     where
         T: ToString,
@@ -294,6 +310,13 @@ impl Direction {
             b'v' => DOWN,
             b'<' => LEFT,
             _ => panic!(),
+        }
+    }
+
+    pub fn opposite(&self) -> Self {
+        Self {
+            x: -self.x,
+            y: -self.y,
         }
     }
 }
