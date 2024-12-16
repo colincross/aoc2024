@@ -90,12 +90,12 @@ impl Maze {
         pos_and_dir.pos == self.end
     }
 
-    fn lowest_score(&self) -> usize {
-        let start = PosAndDir {
+    fn best_paths(&self) -> (Vec<Vec<PosAndDir>>, usize) {
+        let start: PosAndDir = PosAndDir {
             pos: self.start,
             dir: mygrid::RIGHT,
         };
-        let Some((_, cost)) = astar::astar(
+        let Some((solutions, cost)) = astar::astar_bag(
             &start,
             |n| self.successors(n),
             |n| self.heuristic(n),
@@ -104,7 +104,22 @@ impl Maze {
             panic!()
         };
 
+        (solutions.collect(), cost)
+    }
+
+    fn lowest_score(&self) -> usize {
+        let (_, cost) = self.best_paths();
         cost
+    }
+
+    fn best_seats(&self) -> usize {
+        let (paths, _) = self.best_paths();
+        let mut paths_grid = Grid::<bool>::new(self.grid.x_size, self.grid.y_size);
+        for pos_and_dir in paths.iter().flatten() {
+            paths_grid[&pos_and_dir.pos] = true;
+        }
+
+        paths_grid.iter().filter(|&v| v == &true).count()
     }
 }
 
@@ -127,6 +142,7 @@ fn main() {
     let data = read_to_string(&input_file).unwrap();
     let maze: Maze = parse_input(&data);
     println!("lowest score: {}", maze.lowest_score());
+    println!("best seats: {}", maze.best_seats());
 }
 
 #[cfg(test)]
@@ -145,5 +161,19 @@ mod tests {
         let data = read_to_string("src/main.txt").unwrap();
         let maze: Maze = parse_input(&data);
         assert_eq!(maze.lowest_score(), 127520);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let maze: Maze = parse_input(&data);
+        assert_eq!(maze.best_seats(), 45);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let maze: Maze = parse_input(&data);
+        assert_eq!(maze.best_seats(), 565);
     }
 }
