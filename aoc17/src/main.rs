@@ -1,10 +1,12 @@
 use itertools::Itertools;
 use std::fs::read_to_string;
 
+#[derive(Debug)]
 struct Register {
     val: u64,
 }
 
+#[derive(Debug)]
 struct Computer {
     a: Register,
     b: Register,
@@ -164,6 +166,34 @@ fn parse_input(data: &str) -> (Computer, Vec<u8>) {
     (computer, program)
 }
 
+fn find_lowest_self_reproducing_a(program: &[u8]) -> u64 {
+    // The given program operates on groups of 3 bits in A, mixing in some higher bits.  Start
+    // with the last output.
+
+    fn recurse(a: u64, i: usize, program: &[u8]) -> Option<u64> {
+        let max_to_test = if i == 0 { 1024 } else { 8 };
+        for j in 0..max_to_test {
+            let test = (a << 3) + j;
+            let mut computer = Computer::new(test, 0, 0);
+            let out = computer.run(program);
+            if program.len() >= out.len() && program[program.len() - out.len()..] == out {
+                if program.len() == out.len() {
+                    return Some(test);
+                } else if let Some(answer) = recurse(test, i + 1, program) {
+                    return Some(answer);
+                }
+            }
+        }
+        None
+    }
+    let a = recurse(0, 0, program).unwrap();
+
+    let mut computer = Computer::new(a, 0, 0);
+    let out = computer.run(program);
+    assert_eq!(program, out);
+    a
+}
+
 fn main() {
     let args = std::env::args().collect::<Vec<_>>();
     let input_file = if args.len() >= 2 {
@@ -181,6 +211,10 @@ fn main() {
     println!(
         "program output: {}",
         computer.run_with_string_output(&program)
+    );
+    println!(
+        "lowest self reproducing starting value: {}",
+        find_lowest_self_reproducing_a(&program)
     );
 }
 
@@ -234,5 +268,19 @@ mod tests {
                 .join(","),
             "7,3,1,3,6,3,6,0,2"
         );
+    }
+
+    #[test]
+    fn test_part2_small() {
+        let program = vec![0, 3, 5, 4, 3, 0];
+        let mut computer = Computer::new(117440, 0, 0);
+        assert_eq!(computer.run(&program), program);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (_, program) = parse_input(&data);
+        assert_eq!(find_lowest_self_reproducing_a(&program), 105843716614554);
     }
 }
