@@ -238,6 +238,12 @@ impl Position {
     }
 }
 
+impl ToString for Position {
+    fn to_string(&self) -> String {
+        self.x.to_string() + "," + &self.y.to_string()
+    }
+}
+
 #[auto_impl_ops::auto_ops]
 impl AddAssign<&Position> for Position {
     fn add_assign(&mut self, other: &Self) {
