@@ -1,4 +1,4 @@
-use std::fs::read_to_string;
+use std::{collections::HashMap, fs::read_to_string};
 
 fn parse_input(data: &str) -> (Vec<String>, Vec<String>) {
     let mut lines = data.lines();
@@ -17,27 +17,45 @@ fn parse_input(data: &str) -> (Vec<String>, Vec<String>) {
     (available, designs)
 }
 
-fn design_is_possible(available: &[String], design: &str) -> bool {
+fn count_arrangements(
+    available: &[String],
+    design: &str,
+    seen: &mut HashMap<String, usize>,
+) -> usize {
     if design == "" {
-        return true;
+        return 1;
     }
 
+    if let Some(&previous) = seen.get(design) {
+        return previous;
+    }
+
+    let mut count = 0;
     for pattern in available {
         if design.starts_with(pattern) {
-            if design_is_possible(available, &design[pattern.len()..]) {
-                return true;
-            }
+            count += count_arrangements(available, &design[pattern.len()..], seen);
         }
     }
 
-    return false;
+    seen.insert(design.to_string(), count);
+
+    return count;
 }
 
 fn possible_designs(available: &[String], designs: &[String]) -> usize {
+    let mut seen = HashMap::new();
     designs
         .iter()
-        .filter(|&design| design_is_possible(available, design))
+        .filter(|&design| count_arrangements(available, design, &mut seen) > 0)
         .count()
+}
+
+fn count_total_arrangements(available: &[String], designs: &[String]) -> usize {
+    let mut seen = HashMap::new();
+    designs
+        .iter()
+        .map(|design| count_arrangements(available, design, &mut seen))
+        .sum()
 }
 
 fn main() {
@@ -58,6 +76,10 @@ fn main() {
         "possible designs: {}",
         possible_designs(&available, &designs)
     );
+    println!(
+        "total arrangements: {}",
+        count_total_arrangements(&available, &designs)
+    );
 }
 
 #[cfg(test)]
@@ -76,5 +98,22 @@ mod tests {
         let data = read_to_string("src/main.txt").unwrap();
         let (available, designs) = parse_input(&data);
         assert_eq!(possible_designs(&available, &designs), 216);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let (available, designs) = parse_input(&data);
+        assert_eq!(count_total_arrangements(&available, &designs), 16);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (available, designs) = parse_input(&data);
+        assert_eq!(
+            count_total_arrangements(&available, &designs),
+            603191454138773
+        );
     }
 }
