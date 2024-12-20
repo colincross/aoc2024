@@ -20,7 +20,7 @@ members = [
   "aoc17",
   "aoc18",
   "aoc19",
-#  "aoc20",
+  "aoc20",
 #  "aoc21",
 #  "aoc22",
 #  "aoc23",

@@ -120,6 +120,15 @@ name = "aoc19"
 version = "0.1.0"
 
 [[package]]
+name = "aoc20"
+version = "0.1.0"
+dependencies = [
+ "mygrid",
+ "pathfinding",
+ "regex",
+]
+
+[[package]]
 name = "auto-impl-ops"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
