@@ -22,6 +22,7 @@ struct Maze {
     path: Vec<Position>,
     #[allow(unused)]
     start: Position,
+    #[allow(unused)]
     end: Position,
 }
 
@@ -79,28 +80,41 @@ impl Maze {
         }
     }
 
-    fn count_cheats_that_save(&self, save: usize) -> usize {
-        let min_time = self.distance[&self.end];
-
+    fn count_cheats_from_start_that_save(
+        &self,
+        start: &Position,
+        save: usize,
+        max_cheat: usize,
+    ) -> usize {
         let mut count = 0;
-
-        for pos in self.path.iter() {
-            count += mygrid::CARDINAL_DIRECTIONS
-                .iter()
-                .map(|dir| pos.step(&dir).step(&dir))
-                .filter(|cheat_end_pos| {
-                    self.grid
-                        .at(cheat_end_pos)
-                        .map_or(false, |&c| c == Cell::Empty)
-                })
-                .map(|cheat_end_pos| {
-                    self.distance[&pos] + (min_time - self.distance[&cheat_end_pos] + 1)
-                })
-                .filter(|&t| t < min_time && min_time - t >= save)
-                .count();
+        let m = max_cheat as i32;
+        for x in -m..=m {
+            for y in -m..=m {
+                let cheat_len = x.abs() as usize + y.abs() as usize;
+                if cheat_len > max_cheat {
+                    continue;
+                }
+                let pos = Position::new(start.x + x, start.y + y);
+                let distance_with_cheat = self.distance[start] + cheat_len;
+                if self.grid.valid_pos(&pos)
+                    && self.distance[&pos]
+                        .checked_sub(distance_with_cheat)
+                        .unwrap_or(0)
+                        >= save
+                {
+                    count += 1;
+                }
+            }
         }
 
         count
+    }
+
+    fn count_cheats_that_save(&self, save: usize, max_cheat: usize) -> usize {
+        self.path
+            .iter()
+            .map(|pos| self.count_cheats_from_start_that_save(pos, save, max_cheat))
+            .sum()
     }
 }
 
@@ -123,7 +137,14 @@ fn main() {
     let data = read_to_string(&input_file).unwrap();
     let maze: Maze = parse_input(&data);
 
-    println!("lowest score: {}", maze.count_cheats_that_save(100));
+    println!(
+        "count of 2 picosecond cheats: {}",
+        maze.count_cheats_that_save(100, 2)
+    );
+    println!(
+        "count of 20 picosecond cheats: {}",
+        maze.count_cheats_that_save(100, 20)
+    );
 }
 
 #[cfg(test)]
@@ -134,17 +155,17 @@ mod tests {
     fn test_part1() {
         let data = read_to_string("src/test.txt").unwrap();
         let maze: Maze = parse_input(&data);
-        assert_eq!(maze.count_cheats_that_save(64), 1);
-        assert_eq!(maze.count_cheats_that_save(40), 2);
-        assert_eq!(maze.count_cheats_that_save(38), 3);
-        assert_eq!(maze.count_cheats_that_save(36), 4);
-        assert_eq!(maze.count_cheats_that_save(20), 5);
-        assert_eq!(maze.count_cheats_that_save(12), 8);
-        assert_eq!(maze.count_cheats_that_save(10), 10);
-        assert_eq!(maze.count_cheats_that_save(8), 14);
-        assert_eq!(maze.count_cheats_that_save(6), 16);
-        assert_eq!(maze.count_cheats_that_save(4), 30);
-        assert_eq!(maze.count_cheats_that_save(2), 44);
+        assert_eq!(maze.count_cheats_that_save(64, 2), 1);
+        assert_eq!(maze.count_cheats_that_save(40, 2), 2);
+        assert_eq!(maze.count_cheats_that_save(38, 2), 3);
+        assert_eq!(maze.count_cheats_that_save(36, 2), 4);
+        assert_eq!(maze.count_cheats_that_save(20, 2), 5);
+        assert_eq!(maze.count_cheats_that_save(12, 2), 8);
+        assert_eq!(maze.count_cheats_that_save(10, 2), 10);
+        assert_eq!(maze.count_cheats_that_save(8, 2), 14);
+        assert_eq!(maze.count_cheats_that_save(6, 2), 16);
+        assert_eq!(maze.count_cheats_that_save(4, 2), 30);
+        assert_eq!(maze.count_cheats_that_save(2, 2), 44);
     }
 
     #[test]
@@ -152,6 +173,31 @@ mod tests {
         let data = read_to_string("src/main.txt").unwrap();
         let maze: Maze = parse_input(&data);
 
-        assert_eq!(maze.count_cheats_that_save(100), 1346);
+        assert_eq!(maze.count_cheats_that_save(100, 2), 1346);
+    }
+
+    #[test]
+    fn test_part2() {
+        let data = read_to_string("src/test.txt").unwrap();
+        let maze: Maze = parse_input(&data);
+        assert_eq!(maze.count_cheats_that_save(76, 20), 3);
+        assert_eq!(maze.count_cheats_that_save(74, 20), 7);
+        assert_eq!(maze.count_cheats_that_save(72, 20), 29);
+        assert_eq!(maze.count_cheats_that_save(70, 20), 41);
+        assert_eq!(maze.count_cheats_that_save(68, 20), 55);
+        assert_eq!(maze.count_cheats_that_save(66, 20), 67);
+        assert_eq!(maze.count_cheats_that_save(64, 20), 86);
+        assert_eq!(
+            maze.count_cheats_that_save(50, 20),
+            32 + 31 + 29 + 39 + 25 + 23 + 20 + 19 + 12 + 14 + 12 + 22 + 4 + 3
+        );
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let maze: Maze = parse_input(&data);
+
+        assert_eq!(maze.count_cheats_that_save(100, 20), 985482);
     }
 }
