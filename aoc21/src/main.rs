@@ -1,11 +1,78 @@
 use itertools::Itertools;
 use lazy_static::lazy_static;
+use rayon::prelude::*;
 use std::{collections::HashMap, fs::read_to_string};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Location {
     x: i32,
     y: i32,
+}
+
+type ButtonPair = (char, char);
+type ButtonPairSequenceMap = HashMap<ButtonPair, Vec<String>>;
+type ButtonPairCostMap = HashMap<ButtonPair, u64>;
+
+fn all_button_pairs_iter() -> impl Iterator<Item = ButtonPair> {
+    DIRPAD_BUTTONS
+        .iter()
+        .cloned()
+        .flat_map(|a| DIRPAD_BUTTONS.iter().cloned().map(move |b| (a, b)))
+}
+
+fn generate_sequences<'a>(
+    keypad: &'a Keypad,
+) -> impl Iterator<Item = (ButtonPair, Vec<String>)> + 'a {
+    all_button_pairs_iter().map(|(from, to)| {
+        (
+            (from, to),
+            keypad.sequences(&keypad.button_location(from), &keypad.button_location(to)),
+        )
+    })
+}
+
+fn generate_costs(sequences_map: &ButtonPairSequenceMap, n: usize) -> Vec<ButtonPairCostMap> {
+    let first_button_pad_costs =
+        ButtonPairCostMap::from_iter(all_button_pairs_iter().map(|pair| (pair, 1)));
+    let mut costs = Vec::<ButtonPairCostMap>::new();
+    costs.push(first_button_pad_costs);
+
+    for _ in 0..n {
+        let previous_pad_costs = costs.last().unwrap();
+        let pad_costs = ButtonPairCostMap::from_iter(all_button_pairs_iter().map(|pair| {
+            (
+                pair,
+                cost_for_pair(&sequences_map[&pair], previous_pad_costs),
+            )
+        }));
+        costs.push(pad_costs)
+    }
+
+    costs
+}
+
+fn cost_for_pair(sequences: &[String], previous_pad_costs: &ButtonPairCostMap) -> u64 {
+    sequences
+        .iter()
+        .map(|seq| cost_for_sequence(seq, previous_pad_costs))
+        .min()
+        .unwrap()
+}
+
+fn cost_for_sequence(seq: &str, pad_costs: &ButtonPairCostMap) -> u64 {
+    // Implicitly assume all sequences start from 'A'
+    ("A".to_owned() + seq)
+        .chars()
+        .tuple_windows()
+        .map(|(a, b)| pad_costs[&(a, b)])
+        .sum::<u64>()
+}
+
+lazy_static! {
+    static ref DIRPAD_BUTTONS: Vec<char> = vec!['<', '>', '^', 'v', 'A'];
+    static ref DIRPAD_PATHS: ButtonPairSequenceMap =
+        HashMap::from_iter(generate_sequences(&DIRPAD));
+    static ref DIRPAD_COSTS: Vec<ButtonPairCostMap> = generate_costs(&DIRPAD_PATHS, 25);
 }
 
 struct Keypad {
@@ -40,62 +107,36 @@ impl Keypad {
     }
 
     fn sequences(&self, from: &Location, to: &Location) -> Vec<String> {
-        fn recurse(seq: &str, from: &Location, to: &Location, blank: &Location) -> Vec<String> {
-            if from.x == blank.x && from.y == blank.y {
-                return vec![];
-            }
-            let mut seqs = Vec::<String>::new();
-            if from.x > to.x {
-                seqs.extend(recurse(
-                    &(seq.to_owned() + "<"),
-                    &Location {
-                        x: from.x - 1,
-                        y: from.y,
-                    },
-                    to,
-                    blank,
-                ));
-            } else if from.x < to.x {
-                seqs.extend(recurse(
-                    &(seq.to_owned() + ">"),
-                    &Location {
-                        x: from.x + 1,
-                        y: from.y,
-                    },
-                    to,
-                    blank,
-                ));
-            }
+        let horiz = if to.x > from.x {
+            ">".repeat((to.x - from.x) as usize)
+        } else if to.x < from.x {
+            "<".repeat((from.x - to.x) as usize)
+        } else {
+            "".to_string()
+        };
+        let vert = if to.y > from.y {
+            "v".repeat((to.y - from.y) as usize)
+        } else if to.y < from.y {
+            "^".repeat((from.y - to.y) as usize)
+        } else {
+            "".to_string()
+        };
 
-            if from.y > to.y {
-                seqs.extend(recurse(
-                    &(seq.to_owned() + "^"),
-                    &Location {
-                        x: from.x,
-                        y: from.y - 1,
-                    },
-                    to,
-                    blank,
-                ));
-            } else if from.y < to.y {
-                seqs.extend(recurse(
-                    &(seq.to_owned() + "v"),
-                    &Location {
-                        x: from.x,
-                        y: from.y + 1,
-                    },
-                    to,
-                    blank,
-                ));
-            }
+        let no_vert_first = from.x == 0 && to.y == self.blank.y;
+        let no_horiz_first = to.x == 0 && from.y == self.blank.y;
 
-            if from.x == to.x && from.y == to.y {
-                seqs.push(seq.to_owned() + &"A");
-            }
+        let mut seqs: Vec<String> = Default::default();
+        let horiz_first = horiz.clone() + &vert + &"A";
+        let vert_first = vert + &horiz + &"A";
+        let duplicate = horiz_first == vert_first;
 
-            seqs
+        if !no_horiz_first {
+            seqs.push(horiz_first);
         }
-        recurse("", from, to, &self.blank)
+        if !no_vert_first && !duplicate {
+            seqs.push(vert_first);
+        }
+        seqs
     }
 }
 
@@ -124,14 +165,25 @@ impl<'a> KeypadState<'a> {
     }
 
     fn sequence(&mut self, target: &str) -> Vec<String> {
+        let mut min_len = usize::MAX;
         target
             .chars()
             .map(|c| self.push_sequences(c))
             .multi_cartesian_product()
             .map(|seqs| seqs.join(""))
+            .filter(|seq| {
+                let len = seq.len();
+                if len > min_len {
+                    false
+                } else {
+                    min_len = len;
+                    true
+                }
+            })
             .collect()
     }
 
+    #[allow(unused)]
     fn sequences(&mut self, targets: &[String]) -> Vec<String> {
         let seqs = targets
             .iter()
@@ -146,27 +198,24 @@ impl<'a> KeypadState<'a> {
     }
 }
 
-fn count_sequence(target: &str) -> usize {
+fn count_sequence(target: &str, n: usize) -> u64 {
     let mut numpad = KeypadState::new(&NUMPAD);
-    let mut dirpad1 = KeypadState::new(&DIRPAD);
-    let mut dirpad2 = KeypadState::new(&DIRPAD);
+    let seqs = numpad.sequence(target);
 
-    dirpad2
-        .sequences(&dirpad1.sequences(&numpad.sequence(target)))
-        .iter()
-        .map(|seq| seq.len())
+    seqs.iter()
+        .map(|seq| cost_for_sequence(seq, &DIRPAD_COSTS[n]))
         .min()
         .unwrap()
 }
 
-fn numeric_part(target: &str) -> usize {
+fn numeric_part(target: &str) -> u64 {
     target[..target.len() - 1].parse().unwrap()
 }
 
-fn sum_of_complexities(targets: &[String]) -> usize {
+fn sum_of_complexities(targets: &[String], n: usize) -> u64 {
     targets
-        .iter()
-        .map(|target| count_sequence(target) * numeric_part(target))
+        .par_iter()
+        .map(|target| count_sequence(target, n) * numeric_part(target))
         .sum()
 }
 
@@ -189,7 +238,14 @@ fn main() {
     let data = read_to_string(&input_file).unwrap();
     let targets = parse_input(&data);
 
-    println!("sum of complexities: {}", sum_of_complexities(&targets));
+    println!(
+        "sum of complexities with 2 directional keypads: {}",
+        sum_of_complexities(&targets, 2)
+    );
+    println!(
+        "sum of complexities with 25 directional keypads: {}",
+        sum_of_complexities(&targets, 25)
+    );
 }
 
 #[cfg(test)]
@@ -219,7 +275,7 @@ mod tests {
         assert!(dirpad2
             .sequences(&dirpad1.sequences(&numpad.sequence("029A")))
             .contains(
-                &"<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A".to_owned()
+                &"<vA<AA>>^AvAA<^A>Av<<A>>^AvA^A<vA>^Av<<A>^A>AAvA^Av<<A>A>^AAAvA<^A>A".to_owned()
             ))
     }
 
@@ -231,7 +287,7 @@ mod tests {
         assert!(dirpad2
             .sequences(&dirpad1.sequences(&numpad.sequence("379A")))
             .contains(
-                &"<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A".to_owned()
+                &"v<<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>Av<<A>A>^AAAvA<^A>A".to_owned()
             ))
     }
 
@@ -257,7 +313,7 @@ mod tests {
         let data = read_to_string("src/test.txt").unwrap();
         let targets = parse_input(&data);
 
-        assert_eq!(sum_of_complexities(&targets), 126384);
+        assert_eq!(sum_of_complexities(&targets, 2), 126384);
     }
 
     #[test]
@@ -265,6 +321,14 @@ mod tests {
         let data = read_to_string("src/main.txt").unwrap();
         let targets = parse_input(&data);
 
-        assert_eq!(sum_of_complexities(&targets), 163920);
+        assert_eq!(sum_of_complexities(&targets, 2), 163920);
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let targets = parse_input(&data);
+
+        assert_eq!(sum_of_complexities(&targets, 25), 204040805018350);
     }
 }
