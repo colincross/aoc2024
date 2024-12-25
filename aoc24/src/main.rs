@@ -110,7 +110,58 @@ fn apply_inputs_and_read_outputs(inputs: &[(Rc<Wire>, bool)], outputs: &[Rc<Wire
     n
 }
 
-fn parse_input(data: &str) -> (Vec<(Rc<Wire>, bool)>, Vec<Rc<Wire>>) {
+fn generate_inputs(
+    wires: &HashMap<String, Rc<Wire>>,
+    x: u64,
+    y: u64,
+    n: usize,
+) -> Vec<(Rc<Wire>, bool)> {
+    let mut inputs = Vec::new();
+
+    for i in 0..n {
+        inputs.push((wires[&format!("x{:02}", i)].clone(), (x >> i) & 1 == 1));
+        inputs.push((wires[&format!("y{:02}", i)].clone(), (y >> i) & 1 == 1));
+    }
+
+    inputs
+}
+
+fn swap_outputs<'a>(name: &'a str) -> &'a str {
+    // fgt,fpq,nqk,pcp,srn,z07,z24,z32
+    match name {
+        "z07" => "nqk",
+        "nqk" => "z07",
+
+        "pcp" => "fgt",
+        "fgt" => "pcp",
+
+        "fpq" => "z24",
+        "z24" => "fpq",
+
+        "z32" => "srn",
+        "srn" => "z32",
+        _ => name,
+    }
+}
+
+fn parse_input(
+    data: &str,
+) -> (
+    HashMap<String, Rc<Wire>>,
+    Vec<(Rc<Wire>, bool)>,
+    Vec<Rc<Wire>>,
+) {
+    parse_input_with_swaps(data, |s| s)
+}
+
+fn parse_input_with_swaps(
+    data: &str,
+    swap: fn(&str) -> &str,
+) -> (
+    HashMap<String, Rc<Wire>>,
+    Vec<(Rc<Wire>, bool)>,
+    Vec<Rc<Wire>>,
+) {
     let mut wires = HashMap::<String, Rc<Wire>>::new();
 
     let mut lines = data.lines();
@@ -129,7 +180,7 @@ fn parse_input(data: &str) -> (Vec<(Rc<Wire>, bool)>, Vec<Rc<Wire>>) {
         let operation = split.next().unwrap();
         let input2_name = split.next().unwrap();
         split.next();
-        let output_name = split.next().unwrap();
+        let output_name = swap(split.next().unwrap());
 
         let output = wires.entry(output_name.to_owned()).or_default();
 
@@ -149,19 +200,17 @@ fn parse_input(data: &str) -> (Vec<(Rc<Wire>, bool)>, Vec<Rc<Wire>>) {
         input2.add_propagate(gate.clone(), Input::INPUT2);
     }
 
-    let mut outputs = wires
-        .into_iter()
-        .filter(|(name, _)| name.starts_with("z"))
+    let mut output_wires = wires
+        .iter()
+        .filter(|&(name, _)| name.starts_with("z"))
         .collect::<Vec<_>>();
-    outputs.sort_by_key(|(name, _)| name[1..].parse::<u32>().unwrap());
+    output_wires.sort_by_key(|(name, _)| name[1..].parse::<u32>().unwrap());
+    let outputs = output_wires
+        .into_iter()
+        .map(|(_, wire)| wire.clone())
+        .collect::<Vec<_>>();
 
-    (
-        inputs,
-        outputs
-            .into_iter()
-            .map(|(_, wire)| wire)
-            .collect::<Vec<_>>(),
-    )
+    (wires, inputs, outputs)
 }
 
 fn main() {
@@ -177,7 +226,7 @@ fn main() {
             .join("src/main.txt")
     };
     let data = read_to_string(&input_file).unwrap();
-    let (inputs, outputs) = parse_input(&data);
+    let (_, inputs, outputs) = parse_input(&data);
 
     println!(
         "output: {}",
@@ -192,14 +241,65 @@ mod tests {
     #[test]
     fn test_part1() {
         let data = read_to_string("src/test.txt").unwrap();
-        let (inputs, outputs) = parse_input(&data);
+        let (_, inputs, outputs) = parse_input(&data);
         assert_eq!(apply_inputs_and_read_outputs(&inputs, &outputs), 2024);
     }
 
     #[test]
     fn answer_part1() {
         let data = read_to_string("src/main.txt").unwrap();
-        let (inputs, outputs) = parse_input(&data);
-        assert_eq!(apply_inputs_and_read_outputs(&inputs, &outputs), 0);
+        let (_, inputs, outputs) = parse_input(&data);
+        assert_eq!(
+            apply_inputs_and_read_outputs(&inputs, &outputs),
+            61886126253040
+        );
+    }
+
+    #[test]
+    fn answer_part2() {
+        let data = read_to_string("src/main.txt").unwrap();
+        let (wires, _, outputs) = parse_input_with_swaps(&data, swap_outputs);
+        let a = apply_inputs_and_read_outputs(&generate_inputs(&wires, 0, 0, 45), &outputs);
+        assert_eq!(a, 0, "expect 0 + 0 = 0");
+        for i in 0..45 {
+            let (wires, _, outputs) = parse_input_with_swaps(&data, swap_outputs);
+            let a: u64 =
+                apply_inputs_and_read_outputs(&generate_inputs(&wires, 1 << i, 0, 45), &outputs);
+            assert_eq!(a, 1u64 << i, "expect {:x} + 0 = {:x}", 1u64 << i, 1u64 << i);
+
+            let (wires, _, outputs) = parse_input_with_swaps(&data, swap_outputs);
+            let a: u64 =
+                apply_inputs_and_read_outputs(&generate_inputs(&wires, 0, 1 << i, 45), &outputs);
+            assert_eq!(a, 1u64 << i, "expect 0 + {:x} = {:x}", 1u64 << i, 1u64 << i);
+        }
+        for i in 0..44 {
+            let (wires, _, outputs) = parse_input_with_swaps(&data, swap_outputs);
+            let a: u64 = apply_inputs_and_read_outputs(
+                &generate_inputs(&wires, 3 << i, 1 << i, 45),
+                &outputs,
+            );
+            assert_eq!(
+                a,
+                4u64 << i,
+                "expect {:x} + {:x} = {:x}",
+                (3u64 << i),
+                (1u64 << i),
+                (4u64 << i),
+            );
+
+            let (wires, _, outputs) = parse_input_with_swaps(&data, swap_outputs);
+            let a: u64 = apply_inputs_and_read_outputs(
+                &generate_inputs(&wires, 1 << i, 3 << i, 45),
+                &outputs,
+            );
+            assert_eq!(
+                a,
+                4u64 << i,
+                "expect {:x} + {:x} = {:x}",
+                1u64 << i,
+                3u64 << i,
+                4u64 << i
+            );
+        }
     }
 }
