@@ -155,6 +155,10 @@ name = "aoc24"
 version = "0.1.0"
 
 [[package]]
+name = "aoc25"
+version = "0.1.0"
+
+[[package]]
 name = "auto-impl-ops"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
